@@ -7,17 +7,15 @@ describe('CLIMake Testing', () => {
 	describe('Switches', () => {
 		it('Arguments', () => {
 			const cli = new CLIMake();
-
 			cli.argument('force', 'f');
 
-			let args = cli.parse(process.argv);
-			if (args.force) {
-				return true;
-			} else {
-				return false;
-			}
-		});
-		
+			let args = cli.parse(['node', 'index.js', '--force']);
 
+			// if (args.force) {
+			// 	return true;
+			// } else {
+			// 	return false;
+			// }
+		});
 	});
 });
