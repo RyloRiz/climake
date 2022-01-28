@@ -230,11 +230,21 @@ class CLIMake extends Command {
 				let help = getHelp(this, exeName);
 
 				// Printing the help menu
-				output(help, log);
+				return output(help, log);
 			} else if (this._version && opts['version']) {
-				output('v' + this._version, log)
+				return output('v' + this._version, log)
 			} else {
-				this.execute(opts);
+				if (this.execute) {
+					this.execute(opts);
+				} else {
+					if (opts['help']) {
+						return output(`You must call 'CLIMake.help(advanced: boolean)' to use 'help'!`);
+					} else if (opts['version']) {
+						return output(`You must call 'CLIMake.version(v: string)' to use 'version'!`);
+					} else {
+						return output(`You must call 'CLIMake.handle(fn: Function)' before usage!`);
+					}
+				}
 			}
 		} else {
 			// Handler for SUBCOMMANDS
@@ -267,7 +277,7 @@ class CLIMake extends Command {
 					let help = getHelp(obj, exeName);
 
 					// Printing the help menu
-					output(help, log);
+					return output(help, log);
 				}
 			} else {
 				for (let index = 0; index < program.command.full.length; index++) {
@@ -293,7 +303,11 @@ class CLIMake extends Command {
 				opts[k] = v;
 			}
 
-			subcmd.execute(opts);
+			if (subcmd.execute) {
+				subcmd.execute(opts);
+			} else {
+				output(`'${program.command.last}' is not a command!`, log);
+			}
 		}
 	}
 
