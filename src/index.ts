@@ -1,14 +1,64 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+/**
+ * We are *not* doing 'get help'... - Loki, 2017
+ */
+let getHelp = (self: Command, exeName: string) => {
+	let helpText = `Usage:\n $ `;
+
+	helpText += exeName + ' ';
+
+	// Getting subcommands
+	let subcommands: any[] | string = [];
+
+	self.commands.forEach((command) => {
+		(subcommands as string[]).push(command.name);
+	});
+
+	subcommands = subcommands.length > 0 ? '[' + (subcommands as unknown as string[]).join('|') + ']' : '';
+
+	helpText += subcommands + '\n\n Arguments:\n';
+
+	// Getting arguments
+	let bothArgs: string[] = [], longArgs: string[] = [] = [];
+
+	self.arguments.forEach((arg) => {
+		let desc = arg.description ? `\t\t${arg.description}` : '';
+		if (arg.name && arg.short && arg.name !== '' && arg.short !== '') {
+			bothArgs.push(`   --${arg.name}, -${arg.short}${desc}`);
+		} else if (arg.name && arg.name !== '') {
+			longArgs.push(`   --${arg.name}${desc}`);
+		}
+	});
+
+	[bothArgs, longArgs].forEach((tbl) => {
+		tbl.forEach((arg) => {
+			helpText += arg + '\n';
+		});
+	});
+
+	// Printing the help menu
+	return helpText;
+};
+
+let output = (input: any, log: boolean = true) => {
+	if (log) {
+		console.log(input);
+	} else {
+		return input;
+	}
+};
+
 class Command {
 	public arguments: any[] = [];
 	public commands: Command[] = [];
 	public description: string;
+	public execute: Function;
 	public name: string;
 	public settings: any[] = [];
 
-	constructor(name: string|boolean, description?: string) {
+	constructor(name: string | boolean, description?: string) {
 		if (name) {
 			this.name = name as string;
 		}
@@ -18,14 +68,13 @@ class Command {
 	};
 
 	/**
-	 * Add an argument/flag/switch to the command
+	 * Add an argument/flag/switch to the command (--arg OR -a)
 	 * @param name Name of argument
 	 * @param short Short name of argument (char flag)
 	 * @param description Description of argument
-	 * @param aliases Any aliases of the argument (no char flags)
 	 * @returns {Command} this
 	 */
-	argument(name: string, short?: string, description?: string, aliases?: string[]) {
+	argument(name: string, short?: string, description?: string/*, aliases?: string[]*/) {
 		this.arguments.push({
 			// aliases: aliases,
 			description: description,
@@ -38,17 +87,20 @@ class Command {
 	/**
 	 * Add a subcommand to the current command
 	 * @param name Name of subcommand
+	 * @param onExecute Function to call when the command is executed
 	 * @param description Description of subcommand
 	 * @returns {Command} subcommand
 	 */
-	command(name: string, description?: string): Command {
+	command(name: string, description: string, onExecute: Function): Command {
 		let subcmd = new Command(name);
+		subcmd.description = description;
+		subcmd.execute = onExecute || new Function();
 		this.commands.push(subcmd);
 		return subcmd;
 	};
 
 	/**
-	 * Add a setting to the current command
+	 * Add a setting to the current command (--name=value)
 	 * @param name Name of setting
 	 * @param description Description of setting
 	 * @returns {Command} this
@@ -65,44 +117,48 @@ class Command {
 }
 
 class CLIMake extends Command {
-	private _help: boolean = false;
-	private _version: boolean = false;
+	private _help: number = 0;
+	private _version: any = false;
 
 	constructor() {
 		super(false);
 	};
 
+	handle(fn: Function): Command {
+		this.execute = fn;
+		return this;
+	}
 
-	help() {
-		this._help = true;
+	help(extraCommands: boolean = false): Command {
+		this._help = extraCommands ? 2 : 1;
 		this.argument('help', 'h', 'Display the help menu');
 		return this;
 	};
 
-	parse(argv: string[]) {
+	parse(argv: string[], log: boolean = true) {
 		argv = argv.slice(2);
 		let commands = [], args = {}, flags = [], settings = {};
 		let currentArg, isArg = false;
 		let onlyCmds = true;
 		for (let index = 0; index < argv.length; index++) {
 			const arg = argv[index];
-			if (arg.startsWith('--')) {
+			if (arg.startsWith('--') && !arg.includes('=')) {
 				onlyCmds = false;
 				isArg = true;
 				currentArg = arg.slice(2);
-				args[currentArg] = undefined;
-			} else if (arg.startsWith('-')) {
+				args[currentArg] = true;
+			} else if (arg.startsWith('-') && !arg.includes('=')) {
 				onlyCmds = false;
 				if (isArg) {
 					isArg = false;
-					currentArg = null;
+					currentArg = true;
 				}
 				flags.push(arg.slice(1));
 			} else if (arg.includes('=')) {
 				onlyCmds = false;
 				if (isArg) {
 					isArg = false;
-					currentArg = null;
+					currentArg = true;
 				}
 				let split = arg.split('=');
 				settings[split[0]] = split[1];
@@ -111,7 +167,7 @@ class CLIMake extends Command {
 					onlyCmds = false;
 					isArg = false;
 					args[currentArg] = arg;
-					currentArg = null;
+					currentArg = true;
 				} else if (onlyCmds) {
 					commands.push(arg);
 				}
@@ -128,17 +184,70 @@ class CLIMake extends Command {
 			flags: flags,
 			settings: settings
 		};
-		
-		if (getLength(commands) === 0) {
-			if (getLength(args) === 1 || getLength(flags) === 1) {
-				// if (args['help'] || flags.indexOf('h') > -1) {
-					
-				// } else if (args['version'] || flags.indexOf('v') > -1) {
 
-				// }
-				if (this._help) {
+		// console.log(commands);
+		// console.log(args);
+		// console.log(flags);
+		// console.log(settings);
+		// console.log('\n');
+
+		if (getLength(commands) === 0) {
+			// Default handler for ROOT COMMAND
+			let opts = {}
+
+			program.flags.forEach((flag) => {
+				if (this.arguments.find(arg => arg.short === flag)) {
+					let obj = this.arguments.find(arg => arg.short === flag);
+					opts[obj.name] = true;
+				}
+			})
+
+			for (const [k, v] of Object.entries(program.args)) {
+				opts[k] = v;
+			}
+
+			for (const [k, v] of Object.entries(program.settings)) {
+				opts[k] = v;
+			}
+
+			if (this._help > 0 && opts['help']) {
+				// Getting exeName
+				let exeName = 'program';
+				let exists = fs.existsSync(path.join(process.cwd(), 'package.json'));
+				if (exists) {
+					let data = fs.readFileSync(path.join(process.cwd(), 'package.json')).toString();
+					data = JSON.parse(data);
+					if (data['bin'] && typeof data['bin'] === 'string') {
+						exeName = data['bin'];
+					} else if (data['bin'] && Object.keys(data['bin'])) {
+						exeName = data['bin'][Object.keys(data['bin'])[0]];
+					} else if (data['name']) {
+						exeName = data['name'];
+					}
+				}
+
+				// Let's do 'get help'
+				let help = getHelp(this, exeName);
+
+				// Printing the help menu
+				output(help, log);
+			} else if (this._version && opts['version']) {
+				output('v' + this._version, log)
+			} else {
+				this.execute(opts);
+			}
+		} else {
+			// Handler for SUBCOMMANDS
+			let opts = {};
+			let subcmd: Command = this;
+
+			if (this._help === 2 && program.command.full[program.command.full.length - 2] === 'help') {
+				let obj = this.commands.find(c => c.name === program.command.full[program.command.full.length - 1]);
+				if (obj) {
+					let desc = obj.description || '';
+
 					// Getting exeName
-					let exeName;
+					let exeName = 'program';
 					let exists = fs.existsSync(path.join(process.cwd(), 'package.json'));
 					if (exists) {
 						let data = fs.readFileSync(path.join(process.cwd(), 'package.json')).toString();
@@ -147,24 +256,49 @@ class CLIMake extends Command {
 							exeName = data['bin'];
 						} else if (data['bin'] && Object.keys(data['bin'])) {
 							exeName = data['bin'][Object.keys(data['bin'])[0]];
+						} else if (data['name']) {
+							exeName = data['name'];
 						}
-					} else {
-						exeName = "program"
 					}
 
-					// Getting subcommands
-					console.log(`Usage:\n $ ${exeName} `);
+					exeName += ' ' + program.command.last + '\t\t' + desc;
+
+					// Let's do 'get help'
+					let help = getHelp(obj, exeName);
+
+					// Printing the help menu
+					output(help, log);
+				}
+			} else {
+				for (let index = 0; index < program.command.full.length; index++) {
+					const cmd: string = program.command.full[index];
+					if (subcmd.commands.find(c => c.name === cmd)) {
+						subcmd = subcmd.commands.find(c => c.name === cmd);
+					}
 				}
 			}
+
+			program.flags.forEach((flag) => {
+				if (subcmd.arguments.find(arg => arg.short === flag)) {
+					let obj = subcmd.arguments.find(arg => arg.short === flag);
+					opts[obj.name] = undefined;
+				}
+			})
+
+			for (const [k, v] of Object.entries(program.args)) {
+				opts[k] = v;
+			}
+
+			for (const [k, v] of Object.entries(program.settings)) {
+				opts[k] = v;
+			}
+
+			subcmd.execute(opts);
 		}
-		console.log(commands);
-		console.log(args);
-		console.log(flags);
-		console.log(settings);
 	}
 
 	version(num: string) {
-		this._version = true;
+		this._version = num;
 		this.argument('version', 'v', 'Display the version number');
 		return this;
 	}
