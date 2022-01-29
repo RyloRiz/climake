@@ -64,4 +64,16 @@ describe('CLIMake Testing', () => {
 			cli.parse('node index.js help print'.split(' '), false);
 		});
 	});
+
+	describe('1.2.0', () => {
+		it('One', () => {
+			let cli = new CLIMake();
+
+			cli.handle((opts) => {
+				console.log(opts._[0]);
+			});
+
+			cli.parse('node index.js ./dist/index.js'.split(' '), true);
+		});
+	});
 });

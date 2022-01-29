@@ -1,6 +1,6 @@
 {
 	"name": "climake",
-	"version": "1.1.0",
+	"version": "1.2.1",
 	"description": "",
 	"main": "./dist/index.js",
 	"files": [
@@ -10,12 +10,15 @@
 		"test": "test"
 	},
 	"scripts": {
-		"build": "npm pack --pack-destination build",
+		"build": "tsc && npm pack --pack-destination build",
 		"test": "mocha"
 	},
 	"keywords": [],
-	"author": "",
+	"author": "RyloRiz",
 	"license": "ISC",
+	"repository": {
+		"url": "https://github.com/RyloRiz/climake"
+	},
 	"type": "module",
 	"devDependencies": {
 		"@types/node": "^17.0.12",

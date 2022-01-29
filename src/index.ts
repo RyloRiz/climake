@@ -191,9 +191,14 @@ class CLIMake extends Command {
 		// console.log(settings);
 		// console.log('\n');
 
+		let opts: {
+			_: string[]
+		} = {
+			_: []
+		};
+
 		if (getLength(commands) === 0) {
 			// Default handler for ROOT COMMAND
-			let opts = {}
 
 			program.flags.forEach((flag) => {
 				if (this.arguments.find(arg => arg.short === flag)) {
@@ -248,7 +253,6 @@ class CLIMake extends Command {
 			}
 		} else {
 			// Handler for SUBCOMMANDS
-			let opts = {};
 			let subcmd: Command = this;
 
 			if (this._help === 2 && program.command.full[program.command.full.length - 2] === 'help') {
@@ -280,10 +284,14 @@ class CLIMake extends Command {
 					return output(help, log);
 				}
 			} else {
+				let chain = true;
 				for (let index = 0; index < program.command.full.length; index++) {
 					const cmd: string = program.command.full[index];
-					if (subcmd.commands.find(c => c.name === cmd)) {
+					if (chain && subcmd.commands.find(c => c.name === cmd)) {
 						subcmd = subcmd.commands.find(c => c.name === cmd);
+					} else {
+						opts._.push(cmd);
+						break;
 					}
 				}
 			}
