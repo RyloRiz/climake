@@ -4,7 +4,7 @@ import * as path from 'path';
 /**
  * We are *not* doing 'get help'... - Loki, 2017
  */
-let getHelp = (self: Command, exeName: string) => {
+let getHelp = (self: Command, exeName: string, nameAddOn?: string) => {
 	let helpText = `Usage:\n $ `;
 
 	helpText += exeName + ' ';
@@ -18,7 +18,7 @@ let getHelp = (self: Command, exeName: string) => {
 
 	subcommands = subcommands.length > 0 ? '[' + (subcommands as unknown as string[]).join('|') + ']' : '';
 
-	helpText += subcommands + '\n\n Arguments:\n';
+	helpText += subcommands + (nameAddOn ? ' ' + nameAddOn : '') + '\n\n Arguments:\n';
 
 	// Getting arguments
 	let bothArgs: string[] = [], longArgs: string[] = [] = [];
@@ -37,6 +37,10 @@ let getHelp = (self: Command, exeName: string) => {
 			helpText += arg + '\n';
 		});
 	});
+
+	if (bothArgs.length + longArgs.length === 0) {
+		helpText += '   N/A';
+	}
 
 	// Printing the help menu
 	return helpText;
@@ -118,10 +122,12 @@ class Command {
 
 class CLIMake extends Command {
 	private _help: number = 0;
+	public id: string = 'program';
 	private _version: any = false;
 
-	constructor() {
+	constructor(id?: string) {
 		super(false);
+		this.id = id?.toLowerCase() || 'program';
 	};
 
 	handle(fn: Function): Command {
@@ -217,19 +223,20 @@ class CLIMake extends Command {
 
 			if (this._help > 0 && opts['help']) {
 				// Getting exeName
-				let exeName = 'program';
-				let exists = fs.existsSync(path.join(process.cwd(), 'package.json'));
-				if (exists) {
-					let data = fs.readFileSync(path.join(process.cwd(), 'package.json')).toString();
-					data = JSON.parse(data);
-					if (data['bin'] && typeof data['bin'] === 'string') {
-						exeName = data['bin'];
-					} else if (data['bin'] && Object.keys(data['bin'])) {
-						exeName = data['bin'][Object.keys(data['bin'])[0]];
-					} else if (data['name']) {
-						exeName = data['name'];
-					}
-				}
+				// let exeName = 'program';
+				// let exists = fs.existsSync(path.join(import.meta.url.slice(7), 'package.json'));
+				// if (exists) {
+				// 	let data = fs.readFileSync(path.join(import.meta.url.slice(7), 'package.json')).toString();
+				// 	data = JSON.parse(data);
+				// 	if (data['bin'] && typeof data['bin'] === 'string') {
+				// 		exeName = data['bin'];
+				// 	} else if (data['bin'] && Object.keys(data['bin'])) {
+				// 		exeName = data['bin'][Object.keys(data['bin'])[0]];
+				// 	} else if (data['name']) {
+				// 		exeName = data['name'];
+				// 	}
+				// }
+				let exeName = this.id;
 
 				// Let's do 'get help'
 				let help = getHelp(this, exeName);
@@ -255,30 +262,44 @@ class CLIMake extends Command {
 			// Handler for SUBCOMMANDS
 			let subcmd: Command = this;
 
-			if (this._help === 2 && program.command.full[program.command.full.length - 2] === 'help') {
-				let obj = this.commands.find(c => c.name === program.command.full[program.command.full.length - 1]);
+			// if (this._help === 2 && program.command.full[program.command.full.length - 2] === 'help') {
+
+			if (this._help === 2 && program.args['help']) {
+				// let obj = this.commands.find(c => c.name === program.command.full[program.command.full.length - 1]);
+				let obj = subcmd;
+				for (let index = 0; index < program.command.full.length; index++) {
+					const programCmd = program.command.full[index];
+					let newObj = obj.commands.find(c => c.name === programCmd);
+					if (newObj) {
+						obj = newObj;
+					} else {
+						return output(`'${programCmd}' is not a command!`, log);
+					}
+				}
 				if (obj) {
 					let desc = obj.description || '';
 
 					// Getting exeName
-					let exeName = 'program';
-					let exists = fs.existsSync(path.join(process.cwd(), 'package.json'));
-					if (exists) {
-						let data = fs.readFileSync(path.join(process.cwd(), 'package.json')).toString();
-						data = JSON.parse(data);
-						if (data['bin'] && typeof data['bin'] === 'string') {
-							exeName = data['bin'];
-						} else if (data['bin'] && Object.keys(data['bin'])) {
-							exeName = data['bin'][Object.keys(data['bin'])[0]];
-						} else if (data['name']) {
-							exeName = data['name'];
-						}
-					}
 
-					exeName += ' ' + program.command.last + '\t\t' + desc;
+					// let exeName = 'program';
+					// let exists = fs.existsSync(path.join(import.meta.url.slice(7), 'package.json'));
+					// if (exists) {
+					// 	let data = fs.readFileSync(path.join(import.meta.url.slice(7), 'package.json')).toString();
+					// 	data = JSON.parse(data);
+					// 	if (data['bin'] && typeof data['bin'] === 'string') {
+					// 		exeName = data['bin'];
+					// 	} else if (data['bin'] && Object.keys(data['bin'])) {
+					// 		exeName = data['bin'][Object.keys(data['bin'])[0]];
+					// 	} else if (data['name']) {
+					// 		exeName = data['name'];
+					// 	}
+					// }
+					let exeName = this.id;
+
+					exeName += ' ' + program.command.full.join(' ');
 
 					// Let's do 'get help'
-					let help = getHelp(obj, exeName);
+					let help = getHelp(obj, exeName, `\t${desc}`);
 
 					// Printing the help menu
 					return output(help, log);
@@ -290,8 +311,8 @@ class CLIMake extends Command {
 					if (chain && subcmd.commands.find(c => c.name === cmd)) {
 						subcmd = subcmd.commands.find(c => c.name === cmd);
 					} else {
+						chain = false;
 						opts._.push(cmd);
-						break;
 					}
 				}
 			}
@@ -299,9 +320,9 @@ class CLIMake extends Command {
 			program.flags.forEach((flag) => {
 				if (subcmd.arguments.find(arg => arg.short === flag)) {
 					let obj = subcmd.arguments.find(arg => arg.short === flag);
-					opts[obj.name] = undefined;
+					opts[obj.name] = true;
 				}
-			})
+			});
 
 			for (const [k, v] of Object.entries(program.args)) {
 				opts[k] = v;
@@ -314,7 +335,10 @@ class CLIMake extends Command {
 			if (subcmd.execute) {
 				subcmd.execute(opts);
 			} else {
-				output(`'${program.command.last}' is not a command!`, log);
+				if (subcmd) {
+					return output(`The root command has no handler. If you are the developer of this CLI, please add a root command handler to your project.`, log);
+				}
+				return output(`'${program.command.last}' is not a command!`, log);
 			}
 		}
 	}

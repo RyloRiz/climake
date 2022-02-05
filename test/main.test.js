@@ -73,7 +73,38 @@ describe('CLIMake Testing', () => {
 				console.log(opts._[0]);
 			});
 
-			cli.parse('node index.js ./dist/index.js'.split(' '), true);
+			cli.parse('node index.js ./dist/index.js'.split(' '), false);
+		});
+	});
+
+	describe('1.2.3', () => {
+		it('One', () => {
+			let cli = new CLIMake();
+
+			let subcmd = cli.command('print', 'Desc', (opts) => {
+				if (opts['force']) {
+					console.log("Forced" + opts._[0]);
+				} else {
+					console.log(opts._[0]);
+				}
+			});
+
+			subcmd.argument('force', 'f', 'Force the thingy idk')
+
+			cli.parse('node index.js print ./dist/index.js -f'.split(' '), false);
+		});
+	});
+
+	describe('1.3.0', () => {
+		it('One', () => {
+			let cli = new CLIMake('testCLI');
+
+			cli.help(true);
+
+			let subcmd = cli.command('thing', 'Some description', (opts) => { });
+			let subsubcmd = subcmd.command('second', 'This is some description', (opts) => { });
+
+			cli.parse('node index.js thing second next --help'.split(' '), true);
 		});
 	});
 });

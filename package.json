@@ -1,6 +1,6 @@
 {
 	"name": "climake",
-	"version": "1.2.1",
+	"version": "1.3.0",
 	"description": "",
 	"main": "./dist/index.js",
 	"files": [
@@ -17,6 +17,7 @@
 	"author": "RyloRiz",
 	"license": "ISC",
 	"repository": {
+		"type": "github:RyloRiz/climake",
 		"url": "https://github.com/RyloRiz/climake"
 	},
 	"type": "module",
